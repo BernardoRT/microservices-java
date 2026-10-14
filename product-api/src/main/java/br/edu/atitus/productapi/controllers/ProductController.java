@@ -12,8 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("products")
-public class
-ProductController {
+public class ProductController {
     private final ProductService service;
 
     public ProductController(@Qualifier("productServiceJpa") ProductService service) {
@@ -45,6 +44,6 @@ ProductController {
     }
     @ExceptionHandler(Exception.class)
     public ResponseEntity<String> exceptionHandler(Exception ex){
-        return ResponseEntity.status(500).body("Ops!!! Algo deu errado.");
+        return ResponseEntity.status(500).body("Ops!!! Algo deu errado. - " + ex.getMessage());
     }
 }

@@ -4,6 +4,7 @@ import br.edu.atitus.productapi.dtos.ProductRequest;
 import br.edu.atitus.productapi.dtos.ProductResponse;
 import br.edu.atitus.productapi.entities.ProductEntity;
 import br.edu.atitus.productapi.repositories.ProductRepository;
+import br.edu.atitus.productapi.services.CurrencyClientService;
 import br.edu.atitus.productapi.services.ProductService;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,9 +16,11 @@ import org.springframework.stereotype.Service;
 public class ProductServiceJpa implements ProductService {
 
     private final ProductRepository repository;
+    private final CurrencyClientService currencyClientService;
 
-    public ProductServiceJpa(ProductRepository repository) {
+    public ProductServiceJpa(ProductRepository repository, CurrencyClientService currencyClientService) {
         this.repository = repository;
+        this.currencyClientService = currencyClientService;
     }
 
     @Value("${server.port:8080}")
@@ -26,19 +29,38 @@ public class ProductServiceJpa implements ProductService {
     @Value("${app.promotion.message:Nenhuma Promoção Ativa}")
     private String promotionMessage;
 
+    private ProductResponse getResponse(ProductEntity entity, String environment, String targetCurrency) {
+        double convertedValue = entity.getPrice();
+
+        if (!entity.getCurrency().equalsIgnoreCase(targetCurrency)) {
+            try {
+
+                var currency = currencyClientService.getCurrency(entity.getCurrency(), targetCurrency);
+                convertedValue = entity.getPrice() * currency.conversionRate();
+                environment += " - " + currency.environment();
+            } catch (Exception e) {
+
+                convertedValue = -1;
+                environment += " - ERROR: " + e.getMessage();
+            }
+        }
+
+        return ProductResponse.fromEntity(
+                entity,
+                environment,
+                promotionMessage,
+                targetCurrency,
+                convertedValue
+        );
+    }
 
     @Override
     public ProductResponse findById(Long id, String targetCurrency) throws Exception {
         var product = repository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Produto não encontrado"));
         String environment = "Product API running in port " + serverPort;
-        return ProductResponse.fromEntity(
-                product,
-                environment,
-                promotionMessage,
-                targetCurrency,
-                0
-        );
+
+        return getResponse(product, environment, targetCurrency);
     }
 
     @Override
@@ -47,13 +69,7 @@ public class ProductServiceJpa implements ProductService {
         String environment = "Product API running in port " + serverPort;
 
         return products.map(
-                entity -> ProductResponse.fromEntity(
-                        entity,
-                        environment,
-                        promotionMessage,
-                        targetCurrency,
-                        0
-                )
+                entity -> getResponse(entity, environment, targetCurrency)
         );
     }
 
