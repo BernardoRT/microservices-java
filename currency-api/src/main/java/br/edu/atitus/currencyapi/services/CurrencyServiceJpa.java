@@ -11,28 +11,39 @@ public class CurrencyServiceJpa implements CurrencyService {
 
     private final CurrencyRepository repository;
     private final Environment env;
+    private final BcbClientService bcbClientService;
 
-    public CurrencyServiceJpa(CurrencyRepository repository, Environment env) {
+    public CurrencyServiceJpa(CurrencyRepository repository, Environment env, BcbClientService bcbClientService) {
         this.repository = repository;
         this.env = env;
+        this.bcbClientService = bcbClientService;
     }
 
     @Override
     public CurrencyResponse findBySourceCurrencyAndTargetCurrency(String sourceCurrency, String targetCurrency) throws Exception {
-        // Busca no banco
-        CurrencyEntity entity = repository.findBySourceCurrencyAndTargetCurrency(sourceCurrency, targetCurrency)
-                .orElseThrow(() -> new Exception("Cotação não encontrada"));
-
-        // Captura a porta do ambiente
         String port = env.getProperty("local.server.port");
         String environmentStr = "Currency API running in Port: " + port;
+        double conversionRate = 0.0;
 
+        try {
 
+            String moedaParaBuscar = sourceCurrency.equals("BRL") ? targetCurrency : sourceCurrency;
+            conversionRate = bcbClientService.buscarCotacaoBCB(moedaParaBuscar, "15-10-2023");
+            environmentStr += " (Fonte: Banco Central do Brasil)";
+
+        } catch (Exception e) {
+
+            CurrencyEntity entity = repository.findBySourceCurrencyAndTargetCurrency(sourceCurrency, targetCurrency)
+                    .orElseThrow(() -> new Exception("Cotação não encontrada nem no BCB e nem no Banco de Dados Local"));
+
+            conversionRate = entity.getConversionRate();
+            environmentStr += " (Fonte: Banco de Dados Local - Fallback)";
+        }
 
         return new CurrencyResponse(
-                entity.getSourceCurrency(),
-                entity.getTargetCurrency(),
-                entity.getConversionRate(),
+                sourceCurrency,
+                targetCurrency,
+                conversionRate,
                 environmentStr
         );
     }
