@@ -76,3 +76,9 @@ REM Cache Caffeine
 consul kv put config/currency-api/spring.cache.type "caffeine"
 consul kv put config/currency-api/spring.cache.cache-names "bcb-api"
 consul kv put config/currency-api/spring.cache.caffeine.spec "maximumSize=1000,expireAfterWrite=10m"
+
+REM Configuração do Auth API
+consul kv put config/auth-api/server.port "8200"
+consul kv put config/auth-api/spring.datasource.url "jdbc:postgresql://localhost/db_user"
+consul kv put config/auth-api/spring.datasource.username "postgres"
+consul kv put config/auth-api/spring.datasource.password "postgres"
