@@ -1,0 +1,193 @@
+services:
+
+  # CONSUL
+
+  consul:
+    image: hashicorp/consul:1.21
+    command: agent -dev -client=0.0.0.0 -ui
+    ports:
+      - "8500:8500"
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+
+  # CARREGAMENTO DAS CONFIGURAÇÕES
+
+  consul-config:
+    image: hashicorp/consul:1.21
+    entrypoint: ["/bin/sh", "/scripts/load-config.sh"]
+    volumes:
+      - ./config/load-config.sh:/scripts/load-config.sh:ro
+    environment:
+      CONSUL_HTTP_ADDR: http://consul:8500
+    depends_on:
+      consul:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - backend
+
+
+
+  # PRODUCT DATABASE
+
+
+  product-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: db_product
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - product_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d db_product"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+    restart: unless-stopped
+
+
+  # CURRENCY DATABASE
+
+  currency-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: db_currency
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - currency_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d db_currency"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+    restart: unless-stopped
+
+
+  # AUTH DATABASE
+
+  auth-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: db_user
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - auth_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d db_user"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+    restart: unless-stopped
+
+
+  # PRODUCT API
+
+  product-api:
+    build:
+      context: ../product-api
+    environment:
+      SPRING_CONFIG_IMPORT: "consul:"
+      SPRING_CLOUD_CONSUL_HOST: consul
+      SPRING_CLOUD_CONSUL_PORT: "8500"
+      SPRING_CLOUD_CONSUL_DISCOVERY_PREFER_IP_ADDRESS: "true"
+    depends_on:
+      consul-config:
+        condition: service_completed_successfully
+      product-db:
+        condition: service_healthy
+    networks:
+      - backend
+    restart: unless-stopped
+
+
+  # CURRENCY API
+
+  currency-api:
+    build:
+      context: ../currency-api
+    ports:
+      - "8100:8100"
+    environment:
+      SPRING_CONFIG_IMPORT: "consul:"
+      SPRING_CLOUD_CONSUL_HOST: consul
+      SPRING_CLOUD_CONSUL_PORT: "8500"
+      SPRING_CLOUD_CONSUL_DISCOVERY_PREFER_IP_ADDRESS: "true"
+    depends_on:
+      consul-config:
+        condition: service_completed_successfully
+      currency-db:
+        condition: service_healthy
+    networks:
+      - backend
+    restart: unless-stopped
+
+
+  # AUTH API
+
+  auth-api:
+    build:
+      context: ../auth-api
+    ports:
+      - "8200:8200"
+    environment:
+      SPRING_CONFIG_IMPORT: "consul:"
+      SPRING_CLOUD_CONSUL_HOST: consul
+      SPRING_CLOUD_CONSUL_PORT: "8500"
+      SPRING_CLOUD_CONSUL_DISCOVERY_PREFER_IP_ADDRESS: "true"
+    depends_on:
+      consul-config:
+        condition: service_completed_successfully
+      auth-db:
+        condition: service_healthy
+    networks:
+      - backend
+    restart: unless-stopped
+
+
+  # GATEWAY API
+
+  gateway-api:
+    build:
+      context: ../gateway-api
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_CONFIG_IMPORT: "consul:"
+      SPRING_CLOUD_CONSUL_HOST: consul
+      SPRING_CLOUD_CONSUL_PORT: "8500"
+      SPRING_CLOUD_CONSUL_DISCOVERY_PREFER_IP_ADDRESS: "true"
+    depends_on:
+      consul-config:
+        condition: service_completed_successfully
+    networks:
+      - backend
+    restart: unless-stopped
+
+
+# REDE INTERNA
+
+networks:
+  backend:
+    driver: bridge
+
+
+# VOLUMES PERSISTENTES
+
+volumes:
+  product_data:
+  currency_data:
+  auth_data:
