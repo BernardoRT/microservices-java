@@ -20,6 +20,8 @@ public class GatewayConfig {
                 .route("product-api-ws", route -> route.path("/ws/products/**").uri("lb://product-api"))
                 .route("currency-api-ws", route -> route.path("/ws/currencies/**").uri("lb://currency-api"))
                 .route("auth-api-ws", route -> route.path("/ws/auth/**").uri("lb://auth-api"))
+                .route("order-api-ws", route -> route.path("/ws/orders/**").uri("lb://order-api"))
+
 
                 .build();
     }
